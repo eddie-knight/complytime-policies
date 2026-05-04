@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 # yamllint disable rule:line-length
-# Option 3 thin caller: delegate pack/push/sign/verify/promote to sonupreetam/gemara-publish-oci
-# (PR #4 branch feat/demo-push-only; pin full SHA, bump when the action branch moves or merges to main).
+# Option 3 thin caller: delegate pack/push/sign/verify/promote to gemaraproj/gemara-registry-cli
+# (PR #2 branch feat/gemara-bundle-publish; pin full SHA, bump when the action merges to main).
 
 name: Publish policy OCI
 
@@ -21,10 +21,10 @@ name: Publish policy OCI
         type: boolean
         default: false
       bundle_file:
-        description: "Root Gemara bundle YAML (relative to repo root)"
+        description: "Root Gemara artifact YAML (Policy file, relative to repo root)"
         required: false
         type: string
-        default: bundles/cis-fedora-l1-workstation.yaml
+        default: governance/policies/cis-fedora-l1-workstation-policy.yaml
       dest_image:
         description: >-
           Quay path (namespace/repository) without registry. Default is a POC namespace;
@@ -64,7 +64,7 @@ permissions:
 
 jobs:
   publish:
-    name: Publish via gemara-publish-oci
+    name: Publish via gemara-registry-cli
     runs-on: ubuntu-latest
     if: github.ref_protected || inputs.allow_unprotected_ref
     steps:
@@ -137,14 +137,63 @@ jobs:
           r='${{ github.repository }}'
           echo "repo_lc=${r,,}" >> "$GITHUB_OUTPUT"
 
+      - name: Install ORAS CLI for tag-exists check
+        if: steps.gate.outputs.proceed == 'true'
+        uses: oras-project/setup-oras@22ce207df3b08e061f537244349aac6ae1d214f6  # v1
+        with:
+          version: "1.2.0"
+
+      - name: Skip if tag already exists on registries
+        id: tag_check
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          GHCR_REGISTRY: ghcr.io
+          GHCR_REPO: ${{ steps.image.outputs.repo_lc }}
+          DEST_REGISTRY: quay.io
+          DEST_REPO: ${{ inputs.dest_image }}
+          TAG: ${{ inputs.release_tag }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEST_USER: ${{ secrets.QUAY_ROBOT_USERNAME }}
+          DEST_TOKEN: ${{ secrets.QUAY_ROBOT_TOKEN }}
+          BYPASS: ${{ inputs.bypass_unchanged_check }}
+        run: |
+          set -euo pipefail
+          if [ "${BYPASS}" = "true" ]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::bypass_unchanged_check: skipping tag-exists check"
+            exit 0
+          fi
+          echo "${GHCR_TOKEN}" | oras login "${GHCR_REGISTRY}" -u "${GHCR_USER}" --password-stdin 2>/dev/null
+          source_exists=false
+          if oras resolve "${GHCR_REGISTRY}/${GHCR_REPO}:${TAG}" >/dev/null 2>&1; then
+            source_exists=true
+          fi
+          dest_exists=false
+          echo "${DEST_TOKEN}" | oras login "${DEST_REGISTRY}" -u "${DEST_USER}" --password-stdin 2>/dev/null
+          if oras resolve "${DEST_REGISTRY}/${DEST_REPO}:${TAG}" >/dev/null 2>&1; then
+            dest_exists=true
+          fi
+          if [ "${source_exists}" = "true" ] && [ "${dest_exists}" = "true" ]; then
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Tag '${TAG}' already exists on both ${GHCR_REGISTRY} and" \
+              " ${DEST_REGISTRY}. Skipping publish. Re-run with bypass_unchanged_check" \
+              " to force re-publish."
+          elif [ "${source_exists}" = "true" ]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Tag '${TAG}' exists on ${GHCR_REGISTRY} but not on" \
+              " ${DEST_REGISTRY}. Proceeding to re-publish and promote."
+          else
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish bundle, sign, verify, and promote
         id: publish
-        if: steps.gate.outputs.proceed == 'true'
+        if: steps.gate.outputs.proceed == 'true' && steps.tag_check.outputs.proceed == 'true'
         # yamllint disable-line rule:line-length
-        # https://github.com/sonupreetam/gemara-publish-oci/pull/4 @ feat/demo-push-only
-        uses: sonupreetam/gemara-publish-oci@4314defdfcc96129775d731d7d64a4aa960a8527
+        # https://github.com/gemaraproj/gemara-registry-cli/pull/2 @ feat/gemara-bundle-publish
+        uses: gemaraproj/gemara-registry-cli@14b177e380a5797cc236775be8be2712b5bac393
         with:
-          publish_mode: gemara-file
           registry: ghcr.io
           repository: ${{ steps.image.outputs.repo_lc }}
           tag: ${{ inputs.release_tag }}
@@ -154,8 +203,8 @@ jobs:
           validate: "true"
           bundle_version: "1"
           working_directory: "."
-          sign_source: "false"
-          verify_source: "false"
+          sign_source: "true"
+          verify_source: "true"
           promote_to_destination: "true"
           destination_registry: quay.io
           destination_repository: ${{ inputs.dest_image }}
@@ -163,19 +212,19 @@ jobs:
           destination_username: ${{ secrets.QUAY_ROBOT_USERNAME }}
           destination_password: ${{ secrets.QUAY_ROBOT_TOKEN }}
           trust_mode: ${{ inputs.trust_mode }}
-          sign_destination: "false"
+          sign_destination: "true"
           verify_destination: ${{ inputs.verify_quay && 'true' || 'false' }}
           allowed_identity_regex: ${{ format('^https://github.com/{0}/.github/workflows/', github.repository) }}
 
       - name: Print release refs
-        if: steps.gate.outputs.proceed == 'true'
+        if: steps.gate.outputs.proceed == 'true' && steps.tag_check.outputs.proceed == 'true'
         run: |
           echo "source_ref=${{ steps.publish.outputs.source_ref }}"
           echo "destination_ref=${{ steps.publish.outputs.destination_ref }}"
           echo "verified_destination=${{ steps.publish.outputs.verified_destination }}"
 
       - name: Verify destination manifest and layer retrievability
-        if: steps.gate.outputs.proceed == 'true'
+        if: steps.gate.outputs.proceed == 'true' && steps.tag_check.outputs.proceed == 'true'
         env:
           QUAY_REGISTRY: quay.io
           DEST_IMAGE: ${{ inputs.dest_image }}
@@ -253,7 +302,7 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Write last published content hash for next run
-        if: success() && steps.gate.outputs.proceed == 'true' && steps.publish.conclusion == 'success'
+        if: success() && steps.gate.outputs.proceed == 'true' && steps.tag_check.outputs.proceed == 'true' && steps.publish.conclusion == 'success'
         env:
           HASH: ${{ steps.content.outputs.hash }}
         run: |
@@ -262,7 +311,7 @@ jobs:
           printf '%s' "$HASH" > .github-publish-cache/last_bundles_hash
 
       - name: Save last published content hash
-        if: success() && steps.gate.outputs.proceed == 'true' && steps.publish.conclusion == 'success'
+        if: success() && steps.gate.outputs.proceed == 'true' && steps.tag_check.outputs.proceed == 'true' && steps.publish.conclusion == 'success'
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
         with:
           path: .github-publish-cache

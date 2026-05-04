@@ -13,6 +13,12 @@ metadata:
       title: CIS Fedora Linux - Level 1 Server
       version: 1.0.0
       description: Control catalog for CIS Fedora Linux Level 1 Server Benchmark
+      url: ../catalogs/cis-fedora-l1-server-catalog.yaml
+    - id: cis-fedora-l1-guidance
+      title: CIS Fedora Linux - Level 1 Guidance
+      version: 1.0.0
+      description: Guidance catalog for CIS Fedora Linux Level 1 Benchmark
+      url: ../guidance/cis-fedora-l1-guidance.yaml
 contacts:
   responsible:
     - name: System Administrator
@@ -27,6 +33,8 @@ scope:
 imports:
   catalogs:
     - reference-id: cis-fedora-l1-server
+  guidance:
+    - reference-id: cis-fedora-l1-guidance
 adherence:
   evaluation-methods:
     - id: openscap-automated

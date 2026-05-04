@@ -6,17 +6,18 @@ pinned composite action (today: [`sonupreetam/gemara-publish-oci`](https://githu
 ## A. Caller workflow contract
 
 **Consumer:** `complytime-policies/.github/workflows/publish-policy-oci.yml`  
-**Provider:** `sonupreetam/gemara-publish-oci@<pinned-full-sha>` (see comment in workflow; [source PR #4](https://github.com/sonupreetam/gemara-publish-oci/pull/4))
+**Provider:** `sonupreetam/gemara-publish-oci@4314defdfcc96129775d731d7d64a4aa960a8527` (see comment in workflow; [source PR #4](https://github.com/sonupreetam/gemara-publish-oci/pull/4))
 
 ### Required `workflow_dispatch` inputs
 
 | Input | Description |
 |-------|-------------|
-| `release_tag` | Tag on GHCR and Quay. |
+| `release_tag` | Tag on GHCR and destination registry. |
 | `bundle_file` | Root Gemara bundle YAML (repo-relative). |
-| `dest_image` | Quay path `namespace/repo` without `quay.io/`. |
+| `dest_image` | Destination path `namespace/repo` without registry host. |
 | `trust_mode` | `resign`, `copy-referrers`, or `copy-only` (passed to the action). |
 | `verify_quay` | If `true`, run `cosign verify` on the **destination** digest after promote (proves signature in CI). |
+| `bypass_unchanged_check` | If `true`, always publish regardless of content-hash cache (default `false`). |
 
 Optional: `allow_unprotected_ref` (forks / unprotected default branch).
 
@@ -25,8 +26,8 @@ Optional: `allow_unprotected_ref` (forks / unprotected default branch).
 | Secret | Use |
 |--------|-----|
 | `GITHUB_TOKEN` | GHCR push/pull (`packages: write`). |
-| `QUAY_ROBOT_USERNAME` | Quay promotion. |
-| `QUAY_ROBOT_TOKEN` | Quay promotion. |
+| `QUAY_ROBOT_USERNAME` | Destination registry promotion. |
+| `QUAY_ROBOT_TOKEN` | Destination registry promotion. |
 
 ### Required permissions
 
@@ -45,18 +46,18 @@ The thin caller maps into the composite as implemented in the workflow (names mu
 | `repository` | lowercased `${{ github.repository }}` |
 | `tag` | `release_tag` |
 | `file` | `bundle_file` |
-| `promote_to_quay` | `"true"` |
-| `quay_registry` | `quay.io` |
-| `quay_image` | `dest_image` |
-| `quay_tag` | `release_tag` |
-| `quay_username` / `quay_password` | Quay robot secrets |
+| `promote_to_destination` | `"true"` |
+| `destination_registry` | `quay.io` |
+| `destination_repository` | `dest_image` |
+| `destination_tag` | `release_tag` |
+| `destination_username` / `destination_password` | Destination robot secrets |
 | `trust_mode` | dispatch `trust_mode` (default `resign`) |
-| `sign_source` / `verify_source` | `"false"` in the checked-in workflow (demo; change if you want GHCR keyless sign) |
-| `sign_destination` | `"false"` (destination sign still runs when `trust_mode: resign` per action rules) |
+| `sign_source` / `verify_source` | `"true"` — keyless cosign on GHCR staging digest |
+| `sign_destination` | `"true"` — keyless cosign on destination digest after promote |
 | `verify_destination` | from `verify_quay` → `"true"` / `"false"` |
 | `allowed_identity_regex` | `^https://github.com/<this repo>/.github/workflows/` |
 
-> **Note:** The composite **embeds** GHCR publish, optional cosign, and ORAS copy to Quay. It does **not** use a separate `workflow_call` to `complytime/org-infra` promote reusables. [spec.md](../spec.md) **FR-004** still describes the org-reusable pattern; this path is the **interim / Option 3** stack recorded under **FR-006** (pinned action, migration to org-agreed refs).
+> **Note:** The composite is the **accepted production path** (Session 2026-05-04). It embeds GHCR publish, keyless cosign sign/verify on source and destination, and ORAS copy to the destination registry in a single atomic `uses:` step. No separate `workflow_call` to org-infra promote reusables is required.
 
 ## C. Output contract
 

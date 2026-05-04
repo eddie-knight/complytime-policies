@@ -38,6 +38,10 @@ Manual publish: [`.github/workflows/publish-policy-oci.yml`](.github/workflows/p
 
 **Secrets (repository):** `QUAY_ROBOT_USERNAME`, `QUAY_ROBOT_TOKEN`. GHCR uses `GITHUB_TOKEN` from the workflow. Forks need their own secrets.
 
+**Verification behavior:** successful runs now include destination digest, manifest media type, and
+layer retrievability checks against Quay API endpoints. If Quay package UI appears sparse for custom
+media types, use workflow verification output and quickstart API checks as the source of truth.
+
 ## Usage
 
 ```bash
