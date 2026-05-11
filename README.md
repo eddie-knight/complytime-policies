@@ -44,7 +44,21 @@ media types, use workflow verification output and quickstart API checks as the s
 
 ## Usage
 
+See **[docs/usage.md](docs/usage.md)** for full consumer documentation: how to pull artifacts with ORAS, verify Cosign signatures, inspect via registry API, and use with `complyctl`.
+
+Quick start:
+
 ```bash
+# Pull the artifact
+oras pull quay.io/complytime/complytime-policies:<tag> -o ./output
+
+# Verify the signature
+cosign verify \
+  --certificate-identity-regexp="https://github.com/complytime/complytime-policies/.github/workflows/" \
+  --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+  quay.io/complytime/complytime-policies:<tag>
+
+# Or use complyctl directly
 complyctl get
 ```
 
