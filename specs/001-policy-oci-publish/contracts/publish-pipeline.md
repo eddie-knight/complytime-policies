@@ -1,12 +1,12 @@
 # Contract: thin caller pipeline (Option 3)
 
 This repository is a **caller only**. Canonical OCI bundle semantics remain in **go-gemara** and the
-pinned composite action (today: [`sonupreetam/gemara-publish-oci`](https://github.com/sonupreetam/gemara-publish-oci); org name `complytime/oci-artifact` is an equivalent target when the same `action.yml` is published there).
+pinned composite action: [`gemaraproj/gemara-registry-cli`](https://github.com/gemaraproj/gemara-registry-cli) (merged to `main`; release tag pending [PR #4](https://github.com/gemaraproj/gemara-registry-cli/pull/4)).
 
 ## A. Caller workflow contract
 
 **Consumer:** `complytime-policies/.github/workflows/publish-policy-oci.yml`  
-**Provider:** `sonupreetam/gemara-publish-oci@4314defdfcc96129775d731d7d64a4aa960a8527` (see comment in workflow; [source PR #4](https://github.com/sonupreetam/gemara-publish-oci/pull/4))
+**Provider:** `gemaraproj/gemara-registry-cli@2b82cd270069d8d323e2121699b9616467753c33` (pinned to `main`; [PR #2](https://github.com/gemaraproj/gemara-registry-cli/pull/2) merged)
 
 ### Required `workflow_dispatch` inputs
 
@@ -41,7 +41,6 @@ The thin caller maps into the composite as implemented in the workflow (names mu
 
 | Caller / dispatch | Action input |
 |---------------------|--------------|
-| `publish_mode` | `gemara-file` |
 | `registry` | `ghcr.io` |
 | `repository` | lowercased `${{ github.repository }}` |
 | `tag` | `release_tag` |

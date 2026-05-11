@@ -8,7 +8,7 @@ description: "Task list for Published policy OCI release pipeline (001-policy-oc
 **Prerequisites**: `plan.md`, `spec.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`  
 **Tests**: Omitted — spec does not require automated tests; validation is manual **E2E** (**SC-003**).
 
-**Organization**: Phases follow **US1** (P1), **US2** (P2), **US3** (P3) in `specs/001-policy-oci-publish/spec.md`. **v1** norms: **`workflow_dispatch` only** (**FR-002**); workflow **`concurrency`**; destination verification for trust (**FR-004**): **interim** = composite `verify_quay` / `trust_mode` per **Session 2026-04-27**; **convergence** = org **`resuable_publish_quay`** `verify_signature` (see **research.md** for that design).
+**Organization**: Phases follow **US1** (P1), **US2** (P2), **US3** (P3) in `specs/001-policy-oci-publish/spec.md`. **v1** norms: **`workflow_dispatch` only** (**FR-002**); workflow **`concurrency`**; destination verification for trust (**FR-004**): composite `verify_quay` / `trust_mode` per **Session 2026-04-27**; composite is the **accepted production path** (Session 2026-05-04) — org-infra `resuable_publish_quay` convergence is **not required**.
 
 ## Format: `[ID] [P?] [Story?] Description`
 
@@ -57,7 +57,7 @@ description: "Task list for Published policy OCI release pipeline (001-policy-oc
 
 ### Implementation for User Story 1
 
-*Supersedes 2026-04-27 ([PR #19](https://github.com/complytime/complytime-policies/pull/19)):* **T011**–**T012** are satisfied by a **single** `uses:` of the composite: promote (ORAS copy) runs **inside** the action, not a second workflow job. Convergence to a separate org-infra `workflow_call` is tracked in spec **FR-004** (interim) / Session 2026-04-27.
+*Supersedes 2026-04-27 ([PR #19](https://github.com/complytime/complytime-policies/pull/19)):* **T011**–**T012** are satisfied by a **single** `uses:` of the composite ([`gemaraproj/gemara-registry-cli`](https://github.com/gemaraproj/gemara-registry-cli)): promote (ORAS copy) runs **inside** the action, not a second workflow job. The composite is the **accepted production path** (Session 2026-05-04).
 
 - [X] T009 [US1] Create `.github/workflows/publish-policy-oci.yml` with **`on.workflow_dispatch` only** for **v1**, top-level **`concurrency`** per **FR-002**, and inputs matching `README.md` and `specs/001-policy-oci-publish/spec.md`
 - [X] T010 [US1] Add checkout of the **repository default branch** (policy content scope per **FR-002**) and GHCR **publish** job with pinned composite `uses:` in `.github/workflows/publish-policy-oci.yml` per `specs/001-policy-oci-publish/contracts/publish-pipeline.md`
@@ -72,7 +72,7 @@ description: "Task list for Published policy OCI release pipeline (001-policy-oc
 
 **Goal**: Operators see **cosign verify** on promote and org-standard promotion; no silent skipping of agreed checks.
 
-**Independent Test**: Logs show promote + destination verify (composite **`verify_quay`**) and signing posture per **trust_mode**; org **`verify_signature: true`** on **resuable_publish_quay** applies after **FR-004** convergence unless **T003** exception is documented (**User Story 2**, **FR-008**).
+**Independent Test**: Logs show promote + destination verify (composite **`verify_quay`**) and signing posture per **trust_mode**; keyless cosign sign/verify on both source and destination per Session 2026-05-04 defaults (**User Story 2**, **FR-008**).
 
 ### Implementation for User Story 2
 

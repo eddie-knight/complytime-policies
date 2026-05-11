@@ -9,7 +9,7 @@
 ## How the thin caller works
 
 1. **Checkout** the **default branch** in the workflow.
-2. The caller invokes one pinned composite: `uses: sonupreetam/gemara-publish-oci@4314defdfcc96129775d731d7d64a4aa960a8527` (or `complytime/oci-artifact@<sha>` when the same `action.yml` is on `main`); see the workflow and **FR-006** for the current pin.
+2. The caller invokes one pinned composite: `uses: gemaraproj/gemara-registry-cli@14b177e380a5797cc236775be8be2712b5bac393` ([PR #2](https://github.com/gemaraproj/gemara-registry-cli/pull/2) `feat/gemara-bundle-publish`); see the workflow and **FR-006** for the current pin.
 3. The action publishes to GHCR, signs and verifies with keyless cosign on both source and destination, and promotes via ORAS copy to the destination registry per `with:` inputs (`trust_mode`, `verify_quay`, `dest_image`, etc.) in a single `uses:`.
 
 **Defaults:** `trust_mode: resign`, `verify_quay: true`, `sign_source: true`, `verify_source: true`, `sign_destination: true` (see **spec** Sessions 2026-04-27 and 2026-05-04). You can set `copy-only` for a stricter no-resign path when debugging.
@@ -17,6 +17,8 @@
 No in-repo redefinition of OCI manifest layout; see [contracts/publish-pipeline.md](contracts/publish-pipeline.md).
 
 **Content-hash caching:** the workflow hashes `bundles/` and `governance/` on each run and skips publish when content is unchanged since the last successful run. Set `bypass_unchanged_check: true` to force a publish (re-promote, emergency, or after cache eviction).
+
+**Tag-exists guard:** before invoking the composite, the workflow runs `oras resolve` against both GHCR and the destination registry. If the `release_tag` already exists on both registries, publish is skipped. If it exists only on GHCR (but not the destination), the workflow proceeds to complete promotion. `bypass_unchanged_check: true` overrides both the content-hash gate and the tag-exists gate.
 
 **Overlapping runs:** workflow `concurrency` group `publish-policy-oci` with `cancel-in-progress: false` (**FR-002**). The composite defines tag/overwrite behavior (see [contracts/publish-pipeline.md](contracts/publish-pipeline.md)).
 
@@ -26,7 +28,7 @@ No in-repo redefinition of OCI manifest layout; see [contracts/publish-pipeline.
 
 1. Go to **Actions** → **Publish policy OCI** → **Run workflow** (on the default branch).
 2. **release_tag (required):** one tag for GHCR and destination registry.
-3. Optional: `bundle_file` (default `bundles/cis-fedora-l1-workstation.yaml`), `dest_image`, `trust_mode`, `verify_quay`, `bypass_unchanged_check`, `allow_unprotected_ref` (unprotected / fork default branches).
+3. Optional: `bundle_file` (default `governance/policies/cis-fedora-l1-workstation-policy.yaml`), `dest_image`, `trust_mode`, `verify_quay`, `bypass_unchanged_check`, `allow_unprotected_ref` (unprotected / fork default branches).
 4. On success, copy `source_ref`, `destination_ref`, and (when `verify_quay: true`) `verified_destination` from logs.
 5. Confirm destination artifact verification summary in workflow output:
    - `destination_digest`
@@ -54,8 +56,10 @@ No in-repo redefinition of OCI manifest layout; see [contracts/publish-pipeline.
 
 - Run [25314153282](https://github.com/sonupreetam/complytime-policies/actions/runs/25314153282): `release_tag=verify-4314def-destination`, destination `sha256:35854f26...`, `verified_destination=true` (signing off, verify only)
 - Run [25314721510](https://github.com/sonupreetam/complytime-policies/actions/runs/25314721510): `release_tag=verify-cosign-enabled`, destination `sha256:29ffb7bd...`, `verified_destination=true`, cosign sign+verify on both GHCR and Quay
+- Run [25320372118](https://github.com/sonupreetam/complytime-policies/actions/runs/25320372118): `gemara-publish-oci` pin (`50b4f59`), 3 layers (policy 72KB + catalog 89KB + guidance 11KB), `verified_destination=true`
+- Run [25423828312](https://github.com/sonupreetam/complytime-policies/actions/runs/25423828312): **`gemaraproj/gemara-registry-cli`** pin (`14b177e`), tag-exists guard active, all stages passed
 
-**Migration (interim pin):** when the composite action moves to a `gemaraproj` or org-wide repo, update the **SHA in** [`.github/workflows/publish-policy-oci.yml`](../../.github/workflows/publish-policy-oci.yml) and drop any interim location once **FR-006** migration is done.
+**Migration status:** the composite action has moved to [`gemaraproj/gemara-registry-cli`](https://github.com/gemaraproj/gemara-registry-cli) ([PR #2](https://github.com/gemaraproj/gemara-registry-cli/pull/2)). The workflow is pinned to a full SHA on that repo. When PR #2 merges to `main`, update the pin to a stable release tag and retire the branch SHA pin per **FR-006**.
 
 ## Consumers: fetch and verify (SC-002)
 

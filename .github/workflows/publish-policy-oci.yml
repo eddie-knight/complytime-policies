@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 # yamllint disable rule:line-length
-# Option 3 thin caller: delegate pack/push/sign/verify/promote to gemaraproj/gemara-registry-cli
-# (PR #2 branch feat/gemara-bundle-publish; pin full SHA, bump when the action merges to main).
+# Thin caller: delegate pack/push/sign/verify/promote to gemaraproj/gemara-registry-cli
+# (pinned to full SHA on main; bump when a release tag is available).
 
 name: Publish policy OCI
 
@@ -28,7 +28,7 @@ name: Publish policy OCI
       dest_image:
         description: >-
           Quay path (namespace/repository) without registry. Default is a POC namespace;
-          set continuouscompliance/complytime-policies for org production.
+          set complytime/complytime-policies for org production.
         required: false
         type: string
         default: test_complytime/complytime-policies
@@ -191,8 +191,9 @@ jobs:
         id: publish
         if: steps.gate.outputs.proceed == 'true' && steps.tag_check.outputs.proceed == 'true'
         # yamllint disable-line rule:line-length
-        # https://github.com/gemaraproj/gemara-registry-cli/pull/2 @ feat/gemara-bundle-publish
-        uses: gemaraproj/gemara-registry-cli@14b177e380a5797cc236775be8be2712b5bac393
+        # https://github.com/gemaraproj/gemara-registry-cli — pinned to main (PR #2 merge commit)
+        # TODO: re-pin to release tag once gemaraproj/gemara-registry-cli#4 merges and v1.0.0 is cut
+        uses: gemaraproj/gemara-registry-cli@2b82cd270069d8d323e2121699b9616467753c33
         with:
           registry: ghcr.io
           repository: ${{ steps.image.outputs.repo_lc }}
