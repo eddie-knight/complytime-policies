@@ -2,7 +2,6 @@
 ---
 # yamllint disable rule:line-length
 # Thin caller: delegate pack/push/sign/verify/promote to gemaraproj/gemara-registry-cli
-# (pinned to full SHA on main; bump when a release tag is available).
 
 name: Publish policy OCI
 
@@ -191,9 +190,7 @@ jobs:
         id: publish
         if: steps.gate.outputs.proceed == 'true' && steps.tag_check.outputs.proceed == 'true'
         # yamllint disable-line rule:line-length
-        # https://github.com/gemaraproj/gemara-registry-cli — pinned to main (PR #2 merge commit)
-        # TODO: re-pin to release tag once gemaraproj/gemara-registry-cli#4 merges and v1.0.0 is cut
-        uses: gemaraproj/gemara-registry-cli@2b82cd270069d8d323e2121699b9616467753c33
+        uses: gemaraproj/gemara-registry-cli@f4f1cc6f03dbe9d8d80005eae1335b8f85f8bae7  # v0.1.0
         with:
           registry: ghcr.io
           repository: ${{ steps.image.outputs.repo_lc }}
