@@ -22,13 +22,13 @@ No in-repo redefinition of OCI manifest layout; see [contracts/publish-pipeline.
 
 **Overlapping runs:** workflow `concurrency` group `publish-policy-oci` with `cancel-in-progress: false` (**FR-002**). The composite defines tag/overwrite behavior (see [contracts/publish-pipeline.md](contracts/publish-pipeline.md)).
 
-**Who can run:** the job runs when the ref is **protected** (`github.ref_protected`) or when dispatch sets **`allow_unprotected_ref: true`**. Unprotected default branches (typical on forks) need **`allow_unprotected_ref: true`**. See the `if:` on the `publish` job in the workflow. Optional [GitHub Environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment) gating is not in the default workflow; add `environment: <name>` in agreement with your org if required.
+**Who can run:** the job runs only when the ref is **protected** (`github.ref_protected`). Forks without branch protection cannot run this workflow. Optional [GitHub Environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment) gating is not in the default workflow; add `environment: <name>` in agreement with your org if required.
 
 ## Run the release workflow
 
 1. Go to **Actions** → **Publish policy OCI** → **Run workflow** (on the default branch).
 2. **release_tag (required):** one tag for GHCR and destination registry.
-3. Optional: `bundle_file` (default `governance/policies/cis-fedora-l1-workstation-policy.yaml`), `dest_image`, `trust_mode`, `verify_quay`, `bypass_unchanged_check`, `allow_unprotected_ref` (unprotected / fork default branches).
+3. Optional: `bundle_file` (default `governance/policies/cis-fedora-l1-workstation-policy.yaml`), `dest_image`, `trust_mode`, `verify_quay`, `bypass_unchanged_check`.
 4. On success, copy `source_ref`, `destination_ref`, and (when `verify_quay: true`) `verified_destination` from logs.
 5. Confirm destination artifact verification summary in workflow output:
    - `destination_digest`
@@ -63,18 +63,18 @@ No in-repo redefinition of OCI manifest layout; see [contracts/publish-pipeline.
 
 ## Consumers: fetch and verify (SC-002)
 
-After a successful publish, the public image is at **`quay.io/continuouscompliance/complytime-policies:<release_tag>`** (see spec **Clarifications** if that path changes). Replace **`<tag>`** with the dispatch **`release_tag`** (or a **`<sha-…>`**-derived tag if your org workflow enabled SHA-style tags).
+After a successful publish, the public image is at **`quay.io/complytime/complytime-policies:<release_tag>`** (see spec **Clarifications** if that path changes). Replace **`<tag>`** with the dispatch **`release_tag`** (or a **`<sha-…>`**-derived tag if your org workflow enabled SHA-style tags).
 
 1. **Resolve digest** (optional but recommended for pinning):
 
    ```bash
-   crane digest "quay.io/continuouscompliance/complytime-policies:<tag>"
+   crane digest "quay.io/complytime/complytime-policies:<tag>"
    ```
 
 2. **Verify cosign signature**:
 
    ```bash
-   cosign verify "quay.io/continuouscompliance/complytime-policies@sha256:<digest>" \
+   cosign verify "quay.io/complytime/complytime-policies@sha256:<digest>" \
      --certificate-identity-regexp '.*' \
      --certificate-oidc-issuer-regexp '.*'
    ```

@@ -12,25 +12,16 @@ name: Publish policy OCI
         description: "Tag for GHCR and Quay (e.g. v0.1.0, sha-abc123de)"
         required: true
         type: string
-      allow_unprotected_ref:
-        description: >-
-          Set true if the default branch is not protected (e.g. fork) so
-          staging, sign, and attestation jobs run.
-        required: false
-        type: boolean
-        default: false
       bundle_file:
         description: "Root Gemara artifact YAML (Policy file, relative to repo root)"
         required: false
         type: string
         default: governance/policies/cis-fedora-l1-workstation-policy.yaml
       dest_image:
-        description: >-
-          Quay path (namespace/repository) without registry. Default is a POC namespace;
-          set complytime/complytime-policies for org production.
+        description: "Quay path (namespace/repository) without registry host."
         required: false
         type: string
-        default: test_complytime/complytime-policies
+        default: complytime/complytime-policies
       trust_mode:
         description: "Destination trust mode: resign (re-sign on Quay), copy-only, or copy-referrers"
         required: false
@@ -65,7 +56,7 @@ jobs:
   publish:
     name: Publish via gemara-registry-cli
     runs-on: ubuntu-latest
-    if: github.ref_protected || inputs.allow_unprotected_ref
+    if: github.ref_protected
     steps:
       - name: Require Quay credentials for promote
         env:

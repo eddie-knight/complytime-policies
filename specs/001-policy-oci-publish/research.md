@@ -20,7 +20,7 @@
 
 ## 4. Promotion: `workflow_call` to `resuable_publish_quay.yml`
 
-- **Decision**: Second job (or sequential step) in the same workflow calls **`complytime/org-infra/.github/workflows/resuable_publish_quay.yml@<pinned SHA>`**, mapping **`source_*`** from the GHCR image/tag the composite action pushed, **`dest_*`** to **`quay.io/continuouscompliance/complytime-policies`** (or documented successor) and **`dest_tag`** matching the release tag policy. Pass **`secrets: inherit`** or explicit secret mapping per org policy.
+- **Decision**: Second job (or sequential step) in the same workflow calls **`complytime/org-infra/.github/workflows/resuable_publish_quay.yml@<pinned SHA>`**, mapping **`source_*`** from the GHCR image/tag the composite action pushed, **`dest_*`** to **`quay.io/complytime/complytime-policies`** (or documented successor) and **`dest_tag`** matching the release tag policy. Pass **`secrets: inherit`** or explicit secret mapping per org policy.
 - **Rationale**: **FR-004** mandates shared org automation for cross-registry promotion and attestation/signature handling.
 - **Alternatives considered**: Custom `crane copy` in this repo (rejected by **FR-004**).
 

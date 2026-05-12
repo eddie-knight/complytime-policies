@@ -120,7 +120,7 @@ Engineers and automation that consume ComplyTime policies need clear instruction
 *Normative: **FR-001**–**FR-008** and **Clarifications** above. The bullets below add context; if a bullet appears to **conflict** with a requirement, follow the **FR** / **Clarification**.*
 
 - The default branch is `main` unless the repository renames it; automation triggers are described against “default branch” to stay naming-neutral.
-- The public registry scope for this project remains `quay.io/continuouscompliance/complytime-policies` (or a successor name documented in the same issue/epic) unless leadership changes the product scope.
+- The public registry scope for this project remains `quay.io/complytime/complytime-policies` (or a successor name documented in the same issue/epic) unless leadership changes the product scope.
 - The language SDK and organization automation deliver the pack/unpack/transport and reusable workflows needed for this repository; this feature does not block on re-implementing those in-tree.
 - Registry credentials and GitHub/Quay configuration are set up in parallel and may complete before or after the caller workflow, but a full end-to-end publish requires them.
 - “Thin caller” is acceptable: this repository lists what to publish (matrix of bundles) and which secrets to use, not a duplicate OCI format specification.

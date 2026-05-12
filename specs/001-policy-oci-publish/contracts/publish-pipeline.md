@@ -19,8 +19,6 @@ pinned composite action: [`gemaraproj/gemara-registry-cli`](https://github.com/g
 | `verify_quay` | If `true`, run `cosign verify` on the **destination** digest after promote (proves signature in CI). |
 | `bypass_unchanged_check` | If `true`, always publish regardless of content-hash cache (default `false`). |
 
-Optional: `allow_unprotected_ref` (forks / unprotected default branch).
-
 ### Required secrets
 
 | Secret | Use |

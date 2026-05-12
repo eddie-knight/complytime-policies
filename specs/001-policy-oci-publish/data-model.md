@@ -36,7 +36,7 @@ This feature is **pipeline- and content-centric**; there is no application datab
 | Field | Type | Notes |
 |-------|------|--------|
 | `registry` | string | e.g. `ghcr.io`. |
-| `repository` | string | e.g. `continuouscompliance/complytime-policies-staging`. |
+| `repository` | string | e.g. `complytime/complytime-policies-staging`. |
 | `tag` | string | e.g. `v1.0.0` or `sha-abc…`. |
 | `digest` | string | From action output `digest` (`sha256:…`). |
 
@@ -49,7 +49,7 @@ This feature is **pipeline- and content-centric**; there is no application datab
 | Field | Type | Notes |
 |-------|------|--------|
 | `dest_registry` | string | `quay.io`. |
-| `dest_image` | string | e.g. `continuouscompliance/complytime-policies`. |
+| `dest_image` | string | e.g. `complytime/complytime-policies`. |
 | `dest_tag` | string | Primary tag promoted. |
 | `digest` | string | From reusable workflow output `digest`. |
 
