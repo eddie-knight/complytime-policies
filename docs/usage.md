@@ -126,7 +126,7 @@ published artifact:
 ```yaml
 # complytime.yaml
 policies:
-  - url: oci://quay.io/complytime/complytime-policies:<tag>
+  - url: quay.io/complytime/complytime-policies:<tag>
     id: cis-fedora-l1
 ```
 

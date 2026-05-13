@@ -1,22 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 # yamllint disable rule:line-length
-# Thin caller: delegate pack/push/sign/verify/promote to gemaraproj/gemara-registry-cli
+# Publishes each bundle in bundles/ as a tagged artifact in a single OCI repository.
+# Tags use the bundle name directly (e.g., ampel-branch-protection, cis-fedora-l1-workstation).
 
 name: Publish policy OCI
 
 "on":
+  push:
+    branches: [main]
+    paths:
+      - 'bundles/**'
+      - 'governance/**'
   workflow_dispatch:
     inputs:
-      release_tag:
-        description: "Tag for GHCR and Quay (e.g. v0.1.0, sha-abc123de)"
-        required: true
-        type: string
-      bundle_file:
-        description: "Root Gemara artifact YAML (Policy file, relative to repo root)"
-        required: false
-        type: string
-        default: governance/policies/cis-fedora-l1-workstation-policy.yaml
       dest_image:
         description: "Quay path (namespace/repository) without registry host."
         required: false
@@ -34,14 +31,6 @@ name: Publish policy OCI
         required: false
         type: boolean
         default: true
-      bypass_unchanged_check:
-        description: >-
-          If false (default), skip publish when tracked bundles/ and governance/ match
-          the last successful publish (per-branch GHA cache). If true, always publish
-          (re-promote, emergency, or when cache was evicted and you need a new tag).
-        required: false
-        type: boolean
-        default: false
 
 concurrency:
   group: publish-policy-oci
@@ -53,10 +42,46 @@ permissions:
   packages: write
 
 jobs:
-  publish:
-    name: Publish via gemara-registry-cli
+  discover:
+    name: Discover bundles
     runs-on: ubuntu-latest
-    if: github.ref_protected
+    outputs:
+      matrix: ${{ steps.bundles.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Build bundle matrix from bundles/
+        id: bundles
+        run: |
+          set -euo pipefail
+          matrix="[]"
+          for bundle_file in bundles/*.yaml; do
+            [ -f "${bundle_file}" ] || continue
+            bundle_name="$(basename "${bundle_file}" .yaml)"
+            # The root policy file is the last layer entry (type: Policy)
+            root_file="$(grep -E '^\s*-\s+' "${bundle_file}" | tail -1 | sed 's/^[[:space:]]*-[[:space:]]*//')"
+            if [ -z "${root_file}" ]; then
+              echo "::warning::No layers found in ${bundle_file}, skipping."
+              continue
+            fi
+            matrix="$(printf '%s' "${matrix}" | jq -c \
+              --arg name "${bundle_name}" \
+              --arg root "${root_file}" \
+              --arg bf "${bundle_file}" \
+              '. += [{"name": $name, "root_file": $root, "bundle_file": $bf}]')"
+          done
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Discovered bundles: $(printf '%s' "${matrix}" | jq -r '.[].name' | tr '\n' ' ')"
+
+  publish:
+    name: "Publish ${{ matrix.bundle.name }}"
+    needs: discover
+    runs-on: ubuntu-latest
+    if: needs.discover.outputs.matrix != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        bundle: ${{ fromJson(needs.discover.outputs.matrix) }}
     steps:
       - name: Require Quay credentials for promote
         env:
@@ -76,117 +101,65 @@ jobs:
         id: last_bundle_hash
         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
         with:
-          # Static key: value on disk is the last successful tree hash (see below).
           path: .github-publish-cache
           key: >-
-            v1-oci-bundles-gov-last-${{ github.repository }}-${{ github.ref_name }}
+            v1-oci-bundle-${{ matrix.bundle.name }}-last-${{ github.repository }}-${{ github.ref_name }}
 
-      - name: Hash tracked bundles/ and governance/
+      - name: Hash bundle content
         id: content
+        env:
+          BUNDLE_FILE: ${{ matrix.bundle.bundle_file }}
         run: |
           set -euo pipefail
-          tmpf=$(mktemp)
-          git ls-files 'bundles/' 'governance/' 2>/dev/null | LC_ALL=C sort >"$tmpf" || true
           {
-            while IFS= read -r f; do
-              [ -f "$f" ] && sha256sum "$f" || true
-            done <"$tmpf"
-            echo "BUNDLE_FILE=${{ inputs.bundle_file }}"
-          } | sha256sum - | awk '{print "hash=" $1}' >>"$GITHUB_OUTPUT"
-          rm -f "$tmpf"
+            sha256sum "${BUNDLE_FILE}"
+            while IFS= read -r layer; do
+              layer="$(echo "${layer}" | sed 's/^[[:space:]]*-[[:space:]]*//')"
+              [ -f "${layer}" ] && sha256sum "${layer}" || true
+            done < <(grep -E '^\s*-\s+' "${BUNDLE_FILE}")
+          } | sha256sum - | awk '{print "hash=" $1}' >> "$GITHUB_OUTPUT"
 
       - name: Skip publish if content unchanged
         id: gate
         env:
           CURRENT: ${{ steps.content.outputs.hash }}
-          BYPASS: ${{ inputs.bypass_unchanged_check }}
         run: |
           set -euo pipefail
-          if [ "${BYPASS}" = "true" ]; then
-            echo "proceed=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::bypass_unchanged_check: publishing regardless of content hash"
-            exit 0
-          fi
           last=""
-          if [ -f .github-publish-cache/last_bundles_hash ]; then
-            last=$(tr -d ' \n\r' <.github-publish-cache/last_bundles_hash)
+          if [ -f .github-publish-cache/last_bundle_hash ]; then
+            last=$(tr -d ' \n\r' <.github-publish-cache/last_bundle_hash)
           fi
           if [ -n "${last}" ] && [ "${CURRENT}" = "${last}" ]; then
             echo "proceed=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::bundles/ and governance/ are unchanged since the last" \
-              " successful publish. Skipping OCI publish. Re-run with" \
-              " bypass_unchanged_check to force, or change publishable content."
+            echo "::notice::Bundle ${{ matrix.bundle.name }} unchanged since last" \
+              " successful publish. Skipping."
             exit 0
           fi
           echo "proceed=true" >> "$GITHUB_OUTPUT"
 
-      - name: GHCR image name (lowercase)
-        id: image
-        if: steps.gate.outputs.proceed == 'true'
-        run: |
-          r='${{ github.repository }}'
-          echo "repo_lc=${r,,}" >> "$GITHUB_OUTPUT"
-
-      - name: Install ORAS CLI for tag-exists check
-        if: steps.gate.outputs.proceed == 'true'
-        uses: oras-project/setup-oras@22ce207df3b08e061f537244349aac6ae1d214f6  # v1
-        with:
-          version: "1.2.0"
-
-      - name: Skip if tag already exists on registries
-        id: tag_check
+      - name: Compute repository names and tags
+        id: repos
         if: steps.gate.outputs.proceed == 'true'
         env:
-          GHCR_REGISTRY: ghcr.io
-          GHCR_REPO: ${{ steps.image.outputs.repo_lc }}
-          DEST_REGISTRY: quay.io
-          DEST_REPO: ${{ inputs.dest_image }}
-          TAG: ${{ inputs.release_tag }}
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEST_USER: ${{ secrets.QUAY_ROBOT_USERNAME }}
-          DEST_TOKEN: ${{ secrets.QUAY_ROBOT_TOKEN }}
-          BYPASS: ${{ inputs.bypass_unchanged_check }}
+          BUNDLE_NAME: ${{ matrix.bundle.name }}
+          DEST_IMAGE: ${{ inputs.dest_image || 'complytime/complytime-policies' }}
         run: |
           set -euo pipefail
-          if [ "${BYPASS}" = "true" ]; then
-            echo "proceed=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::bypass_unchanged_check: skipping tag-exists check"
-            exit 0
-          fi
-          echo "${GHCR_TOKEN}" | oras login "${GHCR_REGISTRY}" -u "${GHCR_USER}" --password-stdin 2>/dev/null
-          source_exists=false
-          if oras resolve "${GHCR_REGISTRY}/${GHCR_REPO}:${TAG}" >/dev/null 2>&1; then
-            source_exists=true
-          fi
-          dest_exists=false
-          echo "${DEST_TOKEN}" | oras login "${DEST_REGISTRY}" -u "${DEST_USER}" --password-stdin 2>/dev/null
-          if oras resolve "${DEST_REGISTRY}/${DEST_REPO}:${TAG}" >/dev/null 2>&1; then
-            dest_exists=true
-          fi
-          if [ "${source_exists}" = "true" ] && [ "${dest_exists}" = "true" ]; then
-            echo "proceed=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Tag '${TAG}' already exists on both ${GHCR_REGISTRY} and" \
-              " ${DEST_REGISTRY}. Skipping publish. Re-run with bypass_unchanged_check" \
-              " to force re-publish."
-          elif [ "${source_exists}" = "true" ]; then
-            echo "proceed=true" >> "$GITHUB_OUTPUT"
-            echo "::warning::Tag '${TAG}' exists on ${GHCR_REGISTRY} but not on" \
-              " ${DEST_REGISTRY}. Proceeding to re-publish and promote."
-          else
-            echo "proceed=true" >> "$GITHUB_OUTPUT"
-          fi
+          r='${{ github.repository }}'
+          echo "ghcr_repo=${r,,}" >> "$GITHUB_OUTPUT"
+          echo "dest_repo=${DEST_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "bundle_tag=${BUNDLE_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Publish bundle, sign, verify, and promote
         id: publish
-        if: steps.gate.outputs.proceed == 'true' && steps.tag_check.outputs.proceed == 'true'
+        if: steps.gate.outputs.proceed == 'true'
         # yamllint disable-line rule:line-length
         uses: gemaraproj/gemara-registry-cli@f4f1cc6f03dbe9d8d80005eae1335b8f85f8bae7  # v0.1.0
         with:
           registry: ghcr.io
-          repository: ${{ steps.image.outputs.repo_lc }}
-          tag: ${{ inputs.release_tag }}
-          file: ${{ inputs.bundle_file }}
+          repository: ${{ steps.repos.outputs.ghcr_repo }}
+          tag: ${{ steps.repos.outputs.bundle_tag }}
+          file: ${{ matrix.bundle.root_file }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           validate: "true"
@@ -196,29 +169,31 @@ jobs:
           verify_source: "true"
           promote_to_destination: "true"
           destination_registry: quay.io
-          destination_repository: ${{ inputs.dest_image }}
-          destination_tag: ${{ inputs.release_tag }}
+          destination_repository: ${{ steps.repos.outputs.dest_repo }}
+          destination_tag: ${{ steps.repos.outputs.bundle_tag }}
           destination_username: ${{ secrets.QUAY_ROBOT_USERNAME }}
           destination_password: ${{ secrets.QUAY_ROBOT_TOKEN }}
-          trust_mode: ${{ inputs.trust_mode }}
+          trust_mode: ${{ inputs.trust_mode || 'resign' }}
           sign_destination: "true"
-          verify_destination: ${{ inputs.verify_quay && 'true' || 'false' }}
+          verify_destination: ${{ inputs.verify_quay == 'false' && 'false' || 'true' }}
           allowed_identity_regex: ${{ format('^https://github.com/{0}/.github/workflows/', github.repository) }}
 
       - name: Print release refs
-        if: steps.gate.outputs.proceed == 'true' && steps.tag_check.outputs.proceed == 'true'
+        if: steps.gate.outputs.proceed == 'true'
         run: |
+          echo "bundle=${{ matrix.bundle.name }}"
           echo "source_ref=${{ steps.publish.outputs.source_ref }}"
           echo "destination_ref=${{ steps.publish.outputs.destination_ref }}"
           echo "verified_destination=${{ steps.publish.outputs.verified_destination }}"
 
       - name: Verify destination manifest and layer retrievability
-        if: steps.gate.outputs.proceed == 'true' && steps.tag_check.outputs.proceed == 'true'
+        if: steps.gate.outputs.proceed == 'true'
         env:
           QUAY_REGISTRY: quay.io
-          DEST_IMAGE: ${{ inputs.dest_image }}
-          DEST_TAG: ${{ inputs.release_tag }}
+          DEST_IMAGE: ${{ steps.repos.outputs.dest_repo }}
+          DEST_TAG: ${{ steps.repos.outputs.bundle_tag }}
           DEST_REF: ${{ steps.publish.outputs.destination_ref }}
+          BUNDLE_NAME: ${{ matrix.bundle.name }}
         run: |
           set -euo pipefail
           base="${QUAY_REGISTRY}/${DEST_IMAGE}"
@@ -248,7 +223,7 @@ jobs:
 
           manifest_json="$(curl -fsS \
             -H 'Accept: application/vnd.oci.image.manifest.v1+json,application/vnd.oci.artifact.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json' \
-            "https://${QUAY_REGISTRY}/v2/${DEST_IMAGE}/manifests/${DEST_DIGEST:-$dest_digest}")"
+            "https://${QUAY_REGISTRY}/v2/${DEST_IMAGE}/manifests/${dest_digest}")"
           manifest_media_type="$(printf '%s' "${manifest_json}" | jq -r '.mediaType // "unknown"')"
           artifact_type="$(printf '%s' "${manifest_json}" | jq -r '.artifactType // ""')"
           layer_count="$(printf '%s' "${manifest_json}" | jq -r '.layers | length')"
@@ -278,7 +253,7 @@ jobs:
           done
 
           {
-            echo "### Destination Artifact Verification"
+            echo "### ${BUNDLE_NAME} — Destination Artifact Verification"
             echo
             echo "- destination_ref: \`${digest_ref}\`"
             echo "- destination_tag: \`${tag_ref}\`"
@@ -287,22 +262,21 @@ jobs:
               echo "- artifact_type: \`${artifact_type}\`"
             fi
             echo "- layer_count: \`${layer_count}\`"
-            echo "- note: Quay package UI may look sparse for custom OCI media types; API checks are authoritative."
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Write last published content hash for next run
-        if: success() && steps.gate.outputs.proceed == 'true' && steps.tag_check.outputs.proceed == 'true' && steps.publish.conclusion == 'success'
+        if: success() && steps.gate.outputs.proceed == 'true' && steps.publish.conclusion == 'success'
         env:
           HASH: ${{ steps.content.outputs.hash }}
         run: |
           set -euo pipefail
           mkdir -p .github-publish-cache
-          printf '%s' "$HASH" > .github-publish-cache/last_bundles_hash
+          printf '%s' "$HASH" > .github-publish-cache/last_bundle_hash
 
       - name: Save last published content hash
-        if: success() && steps.gate.outputs.proceed == 'true' && steps.tag_check.outputs.proceed == 'true' && steps.publish.conclusion == 'success'
+        if: success() && steps.gate.outputs.proceed == 'true' && steps.publish.conclusion == 'success'
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
         with:
           path: .github-publish-cache
           key: >-
-            v1-oci-bundles-gov-last-${{ github.repository }}-${{ github.ref_name }}
+            v1-oci-bundle-${{ matrix.bundle.name }}-last-${{ github.repository }}-${{ github.ref_name }}
