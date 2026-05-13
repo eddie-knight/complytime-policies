@@ -1,11 +1,12 @@
 title: Branch Protection Controls
 metadata:
     id: repo-branch-protection
+    type: ControlCatalog
     description: Branch protection controls for GitHub/GitLab repositories
     author:
         id: complytime
         name: ComplyTime
-        type: Software-Assisted
+        type: Software Assisted
 families:
     - id: source-code
       title: Source Code Protection
