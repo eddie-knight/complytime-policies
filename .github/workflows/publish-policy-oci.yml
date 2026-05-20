@@ -153,7 +153,6 @@ jobs:
       - name: Publish bundle, sign, verify, and promote
         id: publish
         if: steps.gate.outputs.proceed == 'true'
-        # yamllint disable-line rule:line-length
         uses: gemaraproj/gemara-registry-cli@f4f1cc6f03dbe9d8d80005eae1335b8f85f8bae7  # v0.1.0
         with:
           registry: ghcr.io
@@ -188,7 +187,6 @@ jobs:
 
       - name: Install ORAS
         if: steps.gate.outputs.proceed == 'true'
-        # yamllint disable-line rule:line-length
         uses: oras-project/setup-oras@38de303aac69abb66f3e6255b7198bff35f323e3  # v2.0.0
 
       - name: Verify destination manifest and layer retrievability
@@ -233,6 +231,9 @@ jobs:
             echo "::warning::Destination manifest has zero layers."
           fi
 
+          printf '%s' "${manifest_json}" | jq -r \
+            '.layers[] | "layer: mediaType=\(.mediaType) digest=\(.digest) size=\(.size)"'
+
           verify_dir="$(mktemp -d)"
           oras pull "${digest_ref}" -o "${verify_dir}"
           echo "pulled_files:"
@@ -250,6 +251,8 @@ jobs:
             fi
             echo "- layer_count: \`${layer_count}\`"
           } >> "${GITHUB_STEP_SUMMARY}"
+
+          oras logout "${QUAY_REGISTRY}"
 
       - name: Write last published content hash for next run
         if: success() && steps.gate.outputs.proceed == 'true' && steps.publish.conclusion == 'success'
