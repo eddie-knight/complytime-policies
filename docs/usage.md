@@ -29,28 +29,45 @@ the policy and all of its resolved dependencies:
 
 ### Registries
 
+Each bundle is published to its own repository under the organization namespace.
+
 | Registry | Purpose | Example reference |
 |----------|---------|-------------------|
-| `ghcr.io` | Staging (internal) | `ghcr.io/complytime/complytime-policies:<tag>` |
-| `quay.io` | Public destination | `quay.io/complytime/complytime-policies:<tag>` |
+| `ghcr.io` | Staging (internal) | `ghcr.io/complytime/complytime-policies/cis-fedora-l1-workstation:latest` |
+| `quay.io` | Public destination | `quay.io/complytime/cis-fedora-l1-workstation:latest` |
+
+See [ADR-0001](adr/0001-one-quay-repo-per-bundle.md) for the rationale behind one
+repository per bundle.
+
+### Published bundles
+
+| Bundle | Quay repository |
+|--------|-----------------|
+| `ampel-branch-protection` | `quay.io/complytime/ampel-branch-protection` |
+| `cis-fedora-l1-workstation` | `quay.io/complytime/cis-fedora-l1-workstation` |
+| `cis-fedora-l1-server` | `quay.io/complytime/cis-fedora-l1-server` |
 
 ## Tags
 
-Tags are assigned by maintainers at release time via `workflow_dispatch`.
-Common tag formats:
+Publishing happens automatically on push to `main` (when `bundles/` or
+`governance/` files change) and can also be triggered manually via
+`workflow_dispatch`.
 
-- **Semver** — `v0.1.0`, `v1.0.0`
-- **SHA-prefixed** — `sha-abc123de` (derived from the repository commit)
+| Tag | Mutability | Use case |
+|-----|------------|----------|
+| `latest` | Mutable | Tracks the most recent publish from `main` |
+| `v1.0.0` (semver) | Immutable | Versioned releases via `workflow_dispatch` with `version` input |
+| `@sha256:...` (digest) | Immutable | Strongest guarantee — always returns exact bytes |
 
-There is no `latest` tag by default. Always use an explicit tag or
-digest-pinned reference.
+For production and compliance use cases, prefer a digest-pinned or
+semver-pinned reference over `latest`.
 
 ## Pulling the artifact
 
 Use [ORAS CLI](https://oras.land/docs/installation) (v1.2+):
 
 ```bash
-oras pull quay.io/complytime/complytime-policies:<tag> -o ./output
+oras pull quay.io/complytime/cis-fedora-l1-workstation:latest -o ./output
 ```
 
 The extracted files are the raw Gemara YAML layers (policy, catalog, guidance).
@@ -58,13 +75,13 @@ The extracted files are the raw Gemara YAML layers (policy, catalog, guidance).
 ### Resolving the digest
 
 ```bash
-oras resolve quay.io/complytime/complytime-policies:<tag>
+oras resolve quay.io/complytime/cis-fedora-l1-workstation:latest
 ```
 
 This returns the `sha256:…` digest, which you can use for immutable references:
 
 ```bash
-oras pull quay.io/complytime/complytime-policies@sha256:<digest> -o ./output
+oras pull quay.io/complytime/cis-fedora-l1-workstation@sha256:<digest> -o ./output
 ```
 
 ## Verifying the Cosign signature
@@ -76,14 +93,14 @@ via GitHub Actions OIDC. Verify with:
 cosign verify \
   --certificate-identity-regexp="https://github.com/complytime/complytime-policies/.github/workflows/" \
   --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
-  quay.io/complytime/complytime-policies:<tag>
+  quay.io/complytime/cis-fedora-l1-workstation:latest
 ```
 
 A successful output confirms the artifact was produced by the
 `complytime/complytime-policies` GitHub Actions workflow and has not been
 tampered with since signing.
 
-> **Tip:** Replace `<tag>` with a `@sha256:<digest>` reference for the
+> **Tip:** Replace `:latest` with a `@sha256:<digest>` reference for the
 > strongest verification guarantee.
 
 ## Verifying via registry API
@@ -94,23 +111,19 @@ and CLI checks below are authoritative.
 ### Fetch the manifest
 
 ```bash
-curl -sS \
-  -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
-  "https://quay.io/v2/complytime/complytime-policies/manifests/<tag>" \
+oras manifest fetch quay.io/complytime/cis-fedora-l1-workstation:latest \
   | jq '{mediaType, artifactType, layers: [.layers[] | {mediaType, digest, size}]}'
 ```
 
 ### Verify each layer blob is retrievable
 
 ```bash
-curl -sS \
-  -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
-  "https://quay.io/v2/complytime/complytime-policies/manifests/<tag>" \
+oras manifest fetch quay.io/complytime/cis-fedora-l1-workstation:latest \
   | jq -r '.layers[].digest' \
   | while read -r d; do
       echo "checking $d"
-      curl -fsSIL "https://quay.io/v2/complytime/complytime-policies/blobs/$d" \
-        >/dev/null && echo "  ok" || echo "  FAILED"
+      oras blob fetch quay.io/complytime/cis-fedora-l1-workstation@"$d" --output /dev/null \
+        && echo "  ok" || echo "  FAILED"
     done
 ```
 
@@ -126,7 +139,7 @@ published artifact:
 ```yaml
 # complytime.yaml
 policies:
-  - url: quay.io/complytime/complytime-policies:<tag>
+  - url: quay.io/complytime/cis-fedora-l1-workstation@latest
     id: cis-fedora-l1
 ```
 

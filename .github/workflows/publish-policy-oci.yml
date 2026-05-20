@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 # yamllint disable rule:line-length
-# Publishes each bundle in bundles/ as a tagged artifact in a single OCI repository.
-# Tags use the bundle name directly (e.g., ampel-branch-protection, cis-fedora-l1-workstation).
+# Publishes each bundle in bundles/ to its own OCI repository under the destination
+# namespace (e.g., quay.io/complytime/ampel-branch-protection:latest).
+# See docs/adr/0001-one-quay-repo-per-bundle.md for rationale.
 
 name: Publish policy OCI
 
@@ -14,11 +15,17 @@ name: Publish policy OCI
       - 'governance/**'
   workflow_dispatch:
     inputs:
-      dest_image:
-        description: "Quay path (namespace/repository) without registry host."
+      dest_namespace:
+        description: "Quay namespace prefix (each bundle gets its own repo under this namespace)."
         required: false
         type: string
-        default: complytime/complytime-policies
+        default: complytime
+      version:
+        description: >-
+          Semver tag to apply (e.g., v1.0.0). Immutable: fails if the tag already exists.
+          When omitted, only :latest is published.
+        required: false
+        type: string
       trust_mode:
         description: "Destination trust mode: resign (re-sign on Quay), copy-only, or copy-referrers"
         required: false
@@ -142,13 +149,13 @@ jobs:
         if: steps.gate.outputs.proceed == 'true'
         env:
           BUNDLE_NAME: ${{ matrix.bundle.name }}
-          DEST_IMAGE: ${{ inputs.dest_image || 'complytime/complytime-policies' }}
+          DEST_NS: ${{ inputs.dest_namespace || 'complytime' }}
         run: |
           set -euo pipefail
           r='${{ github.repository }}'
-          echo "ghcr_repo=${r,,}" >> "$GITHUB_OUTPUT"
-          echo "dest_repo=${DEST_IMAGE}" >> "$GITHUB_OUTPUT"
-          echo "bundle_tag=${BUNDLE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "ghcr_repo=${r,,}/${BUNDLE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "dest_repo=${DEST_NS}/${BUNDLE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "bundle_tag=latest" >> "$GITHUB_OUTPUT"
 
       - name: Publish bundle, sign, verify, and promote
         id: publish
@@ -253,6 +260,56 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
           oras logout "${QUAY_REGISTRY}"
+
+      - name: Apply semver tag
+        if: >-
+          steps.gate.outputs.proceed == 'true'
+          && inputs.version != ''
+        env:
+          QUAY_REGISTRY: quay.io
+          QUAY_USER: ${{ secrets.QUAY_ROBOT_USERNAME }}
+          QUAY_TOKEN: ${{ secrets.QUAY_ROBOT_TOKEN }}
+          GHCR_REGISTRY: ghcr.io
+          VERSION: ${{ inputs.version }}
+          DEST_REPO: ${{ steps.repos.outputs.dest_repo }}
+          GHCR_REPO: ${{ steps.repos.outputs.ghcr_repo }}
+          DEST_REF: ${{ steps.publish.outputs.destination_ref }}
+          SOURCE_REF: ${{ steps.publish.outputs.source_ref }}
+          BUNDLE_NAME: ${{ matrix.bundle.name }}
+        run: |
+          set -euo pipefail
+
+          # Validate semver format
+          if [[ ! "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Version '${VERSION}' is not valid semver (expected vX.Y.Z)."
+            exit 1
+          fi
+
+          # Check tag does not already exist on destination (immutable)
+          echo "${QUAY_TOKEN}" | oras login "${QUAY_REGISTRY}" -u "${QUAY_USER}" --password-stdin
+          dest_base="${QUAY_REGISTRY}/${DEST_REPO}"
+          if oras resolve "${dest_base}:${VERSION}" >/dev/null 2>&1; then
+            echo "::error::Tag ${VERSION} already exists on ${dest_base}. Semver tags are immutable."
+            exit 1
+          fi
+
+          # Tag destination
+          oras tag "${DEST_REF}" "${VERSION}"
+          echo "tagged_destination=${dest_base}:${VERSION}"
+
+          # Tag source (GHCR)
+          oras tag "${SOURCE_REF}" "${VERSION}"
+          echo "tagged_source=${GHCR_REGISTRY}/${GHCR_REPO}:${VERSION}"
+
+          oras logout "${QUAY_REGISTRY}"
+
+          {
+            echo "### ${BUNDLE_NAME} — Semver Tag"
+            echo
+            echo "- version: \`${VERSION}\`"
+            echo "- destination: \`${dest_base}:${VERSION}\`"
+            echo "- source: \`${GHCR_REGISTRY}/${GHCR_REPO}:${VERSION}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Write last published content hash for next run
         if: success() && steps.gate.outputs.proceed == 'true' && steps.publish.conclusion == 'success'
