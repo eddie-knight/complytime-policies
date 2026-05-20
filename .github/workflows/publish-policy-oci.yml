@@ -186,71 +186,58 @@ jobs:
           echo "destination_ref=${{ steps.publish.outputs.destination_ref }}"
           echo "verified_destination=${{ steps.publish.outputs.verified_destination }}"
 
+      - name: Install ORAS
+        if: steps.gate.outputs.proceed == 'true'
+        # yamllint disable-line rule:line-length
+        uses: oras-project/setup-oras@38de303aac69abb66f3e6255b7198bff35f323e3  # v2.0.0
+
       - name: Verify destination manifest and layer retrievability
         if: steps.gate.outputs.proceed == 'true'
         env:
           QUAY_REGISTRY: quay.io
+          QUAY_USER: ${{ secrets.QUAY_ROBOT_USERNAME }}
+          QUAY_TOKEN: ${{ secrets.QUAY_ROBOT_TOKEN }}
           DEST_IMAGE: ${{ steps.repos.outputs.dest_repo }}
           DEST_TAG: ${{ steps.repos.outputs.bundle_tag }}
           DEST_REF: ${{ steps.publish.outputs.destination_ref }}
           BUNDLE_NAME: ${{ matrix.bundle.name }}
         run: |
           set -euo pipefail
+          echo "${QUAY_TOKEN}" | oras login "${QUAY_REGISTRY}" -u "${QUAY_USER}" --password-stdin
+
           base="${QUAY_REGISTRY}/${DEST_IMAGE}"
           tag_ref="${base}:${DEST_TAG}"
           digest_ref="${DEST_REF}"
           if [ -z "${digest_ref}" ]; then
-            echo "::warning::destination_ref output missing; resolving digest from destination tag."
-            header_file="$(mktemp)"
-            curl -fsSI \
-              -H 'Accept: application/vnd.oci.image.manifest.v1+json,application/vnd.oci.artifact.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json' \
-              "https://${QUAY_REGISTRY}/v2/${DEST_IMAGE}/manifests/${DEST_TAG}" >"${header_file}"
-            dest_digest="$(awk 'BEGIN{IGNORECASE=1} /^docker-content-digest:/ {gsub("\r","",$2); print $2; exit}' "${header_file}")"
-            rm -f "${header_file}"
-            if [ -z "${dest_digest}" ]; then
-              echo "::error::Could not resolve destination digest for ${tag_ref}."
-              exit 1
-            fi
-            digest_ref="${base}@${dest_digest}"
+            echo "::warning::destination_ref output missing; resolving from destination tag."
+            digest_ref="$(oras resolve "${tag_ref}")"
+            digest_ref="${base}@${digest_ref}"
           fi
 
           if [[ "${digest_ref}" != *"@sha256:"* ]]; then
             echo "::error::Destination reference does not include a sha256 digest: ${digest_ref}"
             exit 1
           fi
-          dest_digest="${digest_ref##*@}"
-          echo "destination_digest=${dest_digest}"
+          echo "destination_digest=${digest_ref##*@}"
 
-          manifest_json="$(curl -fsS \
-            -H 'Accept: application/vnd.oci.image.manifest.v1+json,application/vnd.oci.artifact.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json' \
-            "https://${QUAY_REGISTRY}/v2/${DEST_IMAGE}/manifests/${dest_digest}")"
+          manifest_json="$(oras manifest fetch "${digest_ref}")"
           manifest_media_type="$(printf '%s' "${manifest_json}" | jq -r '.mediaType // "unknown"')"
           artifact_type="$(printf '%s' "${manifest_json}" | jq -r '.artifactType // ""')"
           layer_count="$(printf '%s' "${manifest_json}" | jq -r '.layers | length')"
 
           echo "manifest_media_type=${manifest_media_type}"
-          if [ -n "${artifact_type}" ]; then
-            echo "artifact_type=${artifact_type}"
-          else
-            echo "artifact_type=(none)"
-          fi
+          echo "artifact_type=${artifact_type:-(none)}"
           echo "layer_count=${layer_count}"
 
           if [ "${layer_count}" -eq 0 ]; then
             echo "::warning::Destination manifest has zero layers."
           fi
 
-          printf '%s' "${manifest_json}" | jq -r '.layers[] | @base64' | while IFS= read -r encoded; do
-            layer_json="$(printf '%s' "${encoded}" | base64 --decode)"
-            layer_digest="$(printf '%s' "${layer_json}" | jq -r '.digest')"
-            layer_media_type="$(printf '%s' "${layer_json}" | jq -r '.mediaType')"
-            layer_size="$(printf '%s' "${layer_json}" | jq -r '.size')"
-            echo "layer: mediaType=${layer_media_type} digest=${layer_digest} size=${layer_size}"
-            curl -fsSIL "https://${QUAY_REGISTRY}/v2/${DEST_IMAGE}/blobs/${layer_digest}" >/dev/null || {
-              echo "::error::Destination blob is not retrievable: ${layer_digest} (${layer_media_type})"
-              exit 1
-            }
-          done
+          verify_dir="$(mktemp -d)"
+          oras pull "${digest_ref}" -o "${verify_dir}"
+          echo "pulled_files:"
+          ls -la "${verify_dir}/"
+          rm -rf "${verify_dir}"
 
           {
             echo "### ${BUNDLE_NAME} — Destination Artifact Verification"
