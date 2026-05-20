@@ -60,6 +60,13 @@ with standard version tags (`latest`, semver).
 - Quay repos will be auto-created on first push if the org robot
   account has org-level repository-create permissions. No manual
   repo creation required.
+- Quay.io defaults auto-created repositories to private on first push.
+  An org admin must manually set each new repo to public after its
+  initial publish (one-time step per bundle). The Quay REST API for
+  visibility changes requires an OAuth application token, which is
+  incompatible with the robot account used for registry push/pull.
+- The namespace is configurable (`dest_namespace` input); migrating
+  to a dedicated org requires only changing this value.
 - Content-hash caching keys must include the per-bundle repo name
   (already does via `matrix.bundle.name`).
 
