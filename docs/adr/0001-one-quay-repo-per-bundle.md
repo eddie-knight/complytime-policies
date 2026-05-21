@@ -25,9 +25,11 @@ Three alternatives were evaluated:
 ## Decision
 
 Adopt **one Quay repository per policy bundle** under the `complytime`
-namespace. Each bundle published from `bundles/*.yaml` will be pushed to
-its own repository (e.g., `quay.io/complytime/ampel-branch-protection`)
-with standard version tags (`latest`, semver).
+namespace with a `policies-` prefix. Each bundle published from
+`bundles/*.yaml` will be pushed to its own repository (e.g.,
+`quay.io/complytime/policies-ampel-branch-protection`) with standard
+version tags (`latest`, semver). The prefix distinguishes policy
+artifacts from other project repositories in the same namespace.
 
 ## Rationale
 
@@ -42,7 +44,7 @@ with standard version tags (`latest`, semver).
 - **Per-bundle access control.** Quay permissions can be scoped per
   repository if needed in the future.
 - **Consumer clarity.** `complytime.yaml` references become self-describing:
-  `url: quay.io/complytime/ampel-branch-protection@v1.0.0`.
+  `url: quay.io/complytime/policies-ampel-branch-protection@v1.0.0`.
 - **complyctl is agnostic.** The consumer CLI treats the URL as an opaque
   OCI reference — both single-repo and multi-repo references work without
   code changes (verified in `internal/registry/client.go` and
@@ -54,7 +56,7 @@ with standard version tags (`latest`, semver).
 
 - The `publish-policy-oci.yml` workflow must compute
   `destination_repository` per matrix entry as
-  `complytime/${BUNDLE_NAME}` instead of a single shared repo.
+  `complytime/policies-${BUNDLE_NAME}` instead of a single shared repo.
 - Tag strategy: `latest` on main-branch pushes; semver on release
   (via `workflow_dispatch` input or Git tag trigger).
 - Quay repos will be auto-created on first push if the org robot

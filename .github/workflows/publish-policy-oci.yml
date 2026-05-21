@@ -153,8 +153,9 @@ jobs:
         run: |
           set -euo pipefail
           r='${{ github.repository }}'
-          echo "ghcr_repo=${r,,}/${BUNDLE_NAME}" >> "$GITHUB_OUTPUT"
-          echo "dest_repo=${DEST_NS}/${BUNDLE_NAME}" >> "$GITHUB_OUTPUT"
+          repo_name="policies-${BUNDLE_NAME}"
+          echo "ghcr_repo=${r,,}/${repo_name}" >> "$GITHUB_OUTPUT"
+          echo "dest_repo=${DEST_NS}/${repo_name}" >> "$GITHUB_OUTPUT"
           echo "bundle_tag=latest" >> "$GITHUB_OUTPUT"
 
       - name: Publish bundle, sign, verify, and promote

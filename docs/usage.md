@@ -33,8 +33,8 @@ Each bundle is published to its own repository under the organization namespace.
 
 | Registry | Purpose | Example reference |
 |----------|---------|-------------------|
-| `ghcr.io` | Staging (internal) | `ghcr.io/complytime/complytime-policies/cis-fedora-l1-workstation:latest` |
-| `quay.io` | Public destination | `quay.io/complytime/cis-fedora-l1-workstation:latest` |
+| `ghcr.io` | Staging (internal) | `ghcr.io/complytime/complytime-policies/policies-cis-fedora-l1-workstation:latest` |
+| `quay.io` | Public destination | `quay.io/complytime/policies-cis-fedora-l1-workstation:latest` |
 
 See [ADR-0001](adr/0001-one-quay-repo-per-bundle.md) for the rationale behind one
 repository per bundle.
@@ -43,9 +43,9 @@ repository per bundle.
 
 | Bundle | Quay repository |
 |--------|-----------------|
-| `ampel-branch-protection` | `quay.io/complytime/ampel-branch-protection` |
-| `cis-fedora-l1-workstation` | `quay.io/complytime/cis-fedora-l1-workstation` |
-| `cis-fedora-l1-server` | `quay.io/complytime/cis-fedora-l1-server` |
+| `ampel-branch-protection` | `quay.io/complytime/policies-ampel-branch-protection` |
+| `cis-fedora-l1-workstation` | `quay.io/complytime/policies-cis-fedora-l1-workstation` |
+| `cis-fedora-l1-server` | `quay.io/complytime/policies-cis-fedora-l1-server` |
 
 ## Tags
 
@@ -67,7 +67,7 @@ semver-pinned reference over `latest`.
 Use [ORAS CLI](https://oras.land/docs/installation) (v1.2+):
 
 ```bash
-oras pull quay.io/complytime/cis-fedora-l1-workstation:latest -o ./output
+oras pull quay.io/complytime/policies-cis-fedora-l1-workstation:latest -o ./output
 ```
 
 The extracted files are the raw Gemara YAML layers (policy, catalog, guidance).
@@ -75,13 +75,13 @@ The extracted files are the raw Gemara YAML layers (policy, catalog, guidance).
 ### Resolving the digest
 
 ```bash
-oras resolve quay.io/complytime/cis-fedora-l1-workstation:latest
+oras resolve quay.io/complytime/policies-cis-fedora-l1-workstation:latest
 ```
 
 This returns the `sha256:…` digest, which you can use for immutable references:
 
 ```bash
-oras pull quay.io/complytime/cis-fedora-l1-workstation@sha256:<digest> -o ./output
+oras pull quay.io/complytime/policies-cis-fedora-l1-workstation@sha256:<digest> -o ./output
 ```
 
 ## Verifying the Cosign signature
@@ -93,7 +93,7 @@ via GitHub Actions OIDC. Verify with:
 cosign verify \
   --certificate-identity-regexp="https://github.com/complytime/complytime-policies/.github/workflows/" \
   --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
-  quay.io/complytime/cis-fedora-l1-workstation:latest
+  quay.io/complytime/policies-cis-fedora-l1-workstation:latest
 ```
 
 A successful output confirms the artifact was produced by the
@@ -111,18 +111,18 @@ and CLI checks below are authoritative.
 ### Fetch the manifest
 
 ```bash
-oras manifest fetch quay.io/complytime/cis-fedora-l1-workstation:latest \
+oras manifest fetch quay.io/complytime/policies-cis-fedora-l1-workstation:latest \
   | jq '{mediaType, artifactType, layers: [.layers[] | {mediaType, digest, size}]}'
 ```
 
 ### Verify each layer blob is retrievable
 
 ```bash
-oras manifest fetch quay.io/complytime/cis-fedora-l1-workstation:latest \
+oras manifest fetch quay.io/complytime/policies-cis-fedora-l1-workstation:latest \
   | jq -r '.layers[].digest' \
   | while read -r d; do
       echo "checking $d"
-      oras blob fetch quay.io/complytime/cis-fedora-l1-workstation@"$d" --output /dev/null \
+      oras blob fetch quay.io/complytime/policies-cis-fedora-l1-workstation@"$d" --output /dev/null \
         && echo "  ok" || echo "  FAILED"
     done
 ```
@@ -139,7 +139,7 @@ published artifact:
 ```yaml
 # complytime.yaml
 policies:
-  - url: quay.io/complytime/cis-fedora-l1-workstation@latest
+  - url: quay.io/complytime/policies-cis-fedora-l1-workstation@latest
     id: cis-fedora-l1
 ```
 
