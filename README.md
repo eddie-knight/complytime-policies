@@ -49,14 +49,14 @@ See **[docs/usage.md](docs/usage.md)** for full consumer documentation: how to p
 Quick start:
 
 ```bash
-# Pull the artifact
-oras pull quay.io/complytime/complytime-policies:<tag> -o ./output
+# Pull a bundle (each bundle has its own Quay repo, prefixed with "policies-")
+oras pull quay.io/complytime/policies-cis-fedora-l1-workstation:latest -o ./output
 
 # Verify the signature
 cosign verify \
   --certificate-identity-regexp="https://github.com/complytime/complytime-policies/.github/workflows/" \
   --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
-  quay.io/complytime/complytime-policies:<tag>
+  quay.io/complytime/policies-cis-fedora-l1-workstation:latest
 
 # Or use complyctl directly
 complyctl get
