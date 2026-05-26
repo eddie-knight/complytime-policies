@@ -1,0 +1,116 @@
+# SPDX-License-Identifier: Apache-2.0
+---
+# yamllint disable rule:line-length
+# Publishes selected policy bundles to grc.store via grcli.
+# Each governance YAML layer is published individually because grcli
+# requires all inputs to describe a single artifact type.
+
+name: Publish to grc.store
+
+"on":
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "OCI tag to apply (e.g., latest, v1.0.0)"
+        required: false
+        type: string
+        default: latest
+      ampel_branch_protection:
+        description: "Publish ampel-branch-protection bundle"
+        required: false
+        type: boolean
+        default: true
+      cis_fedora_l1_server:
+        description: "Publish cis-fedora-l1-server bundle"
+        required: false
+        type: boolean
+        default: true
+      cis_fedora_l1_workstation:
+        description: "Publish cis-fedora-l1-workstation bundle"
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: publish-grcli
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish selected bundles
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Install ORAS
+        uses: oras-project/setup-oras@v1
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Install grcli
+        run: |
+          oras pull ghcr.io/revanite-io/grcli:latest --platform linux/amd64
+          sudo install grcli /usr/local/bin/grcli
+
+      - name: Publish selected bundles via grcli
+        env:
+          TAG: ${{ inputs.tag || 'latest' }}
+          AMPEL: ${{ inputs.ampel_branch_protection }}
+          CIS_SERVER: ${{ inputs.cis_fedora_l1_server }}
+          CIS_WORKSTATION: ${{ inputs.cis_fedora_l1_workstation }}
+        run: |
+          set -euo pipefail
+
+          published=()
+
+          publish_bundle() {
+            local bundle_file="$1"
+            local bundle_name
+            bundle_name="$(basename "${bundle_file}" .yaml)"
+
+            echo "::group::${bundle_name}"
+            while IFS= read -r layer; do
+              layer="$(echo "${layer}" | sed 's/^[[:space:]]*-[[:space:]]*//')"
+              [ -z "${layer}" ] && continue
+              if [ ! -f "${layer}" ]; then
+                echo "::warning::Layer file not found: ${layer} (bundle: ${bundle_name})"
+                continue
+              fi
+              echo "Publishing ${layer} (tag: ${TAG})..."
+              grcli publish -f "${layer}" --tag "${TAG}"
+              published+=("${layer}")
+            done < <(grep -E '^\s*-\s+' "${bundle_file}")
+            echo "::endgroup::"
+          }
+
+          if [ "${AMPEL}" = "true" ]; then
+            publish_bundle bundles/ampel-branch-protection.yaml
+          fi
+
+          if [ "${CIS_SERVER}" = "true" ]; then
+            publish_bundle bundles/cis-fedora-l1-server.yaml
+          fi
+
+          if [ "${CIS_WORKSTATION}" = "true" ]; then
+            publish_bundle bundles/cis-fedora-l1-workstation.yaml
+          fi
+
+          if [ ${#published[@]} -eq 0 ]; then
+            echo "::warning::No bundles were selected for publishing."
+            exit 0
+          fi
+
+          {
+            echo "### Published to grc.store"
+            echo
+            echo "| File | Tag |"
+            echo "|------|-----|"
+            for f in "${published[@]}"; do
+              echo "| \`${f}\` | \`${TAG}\` |"
+            done
+          } >> "${GITHUB_STEP_SUMMARY}"
