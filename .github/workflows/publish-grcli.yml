@@ -21,17 +21,17 @@ name: Publish to grc.store
         type: boolean
         default: true
       ampel_branch_protection_catalog:
-        description: "Publish ampel-branch-protection-catalog"
+        description: "Publish branch-protection-controls"
         required: false
         type: boolean
         default: true
       cis_fedora_l1_server_catalog:
-        description: "Publish cis-fedora-l1-server-catalog"
+        description: "Publish cis-fedora-l1-server-controls"
         required: false
         type: boolean
         default: true
       cis_fedora_l1_workstation_catalog:
-        description: "Publish cis-fedora-l1-workstation-catalog"
+        description: "Publish cis-fedora-l1-workstation-controls"
         required: false
         type: boolean
         default: true
@@ -121,13 +121,13 @@ jobs:
             publish_file governance/guidance/cis-fedora-l1-guidance.yaml
           fi
           if [ "${AMPEL_CATALOG}" = "true" ]; then
-            publish_file governance/catalogs/ampel-branch-protection-catalog.yaml
+            publish_file governance/controls/branch-protection-controls.yaml
           fi
           if [ "${CIS_SERVER_CATALOG}" = "true" ]; then
-            publish_file governance/catalogs/cis-fedora-l1-server-catalog.yaml
+            publish_file governance/controls/cis-fedora-l1-server-controls.yaml
           fi
           if [ "${CIS_WORKSTATION_CATALOG}" = "true" ]; then
-            publish_file governance/catalogs/cis-fedora-l1-workstation-catalog.yaml
+            publish_file governance/controls/cis-fedora-l1-workstation-controls.yaml
           fi
           if [ "${AMPEL_POLICY}" = "true" ]; then
             publish_file governance/policies/ampel-branch-protection-policy.yaml

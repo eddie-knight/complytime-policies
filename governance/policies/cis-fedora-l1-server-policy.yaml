@@ -3,7 +3,7 @@ metadata:
   id: cis-fedora-l1-server-policy
   type: Policy
   gemara-version: "1.1.0"
-  version: "dev-20260527.2"
+  version: dev-20260527.3
   description: Automated evaluation policy for the CIS Fedora Linux Level 1 Server Benchmark
   author:
     id: complytime
@@ -14,7 +14,7 @@ metadata:
       title: CIS Fedora Linux - Level 1 Server
       version: 1.0.0
       description: Control catalog for CIS Fedora Linux Level 1 Server Benchmark
-      url: https://github.com/complytime/complytime-policies/blob/main/governance/catalogs/cis-fedora-l1-server-catalog.yaml
+      url: https://github.com/complytime/complytime-policies/blob/main/governance/controls/cis-fedora-l1-server-controls.yaml
     - id: cis-fedora-l1-guidance
       title: CIS Fedora Linux - Level 1 Guidance
       version: 1.0.0
