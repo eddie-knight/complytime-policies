@@ -3,7 +3,7 @@ metadata:
   id: cis-fedora-l1-server-policy
   type: Policy
   gemara-version: "1.1.0"
-  version: "dev"
+  version: "dev-20260527"
   description: Automated evaluation policy for the CIS Fedora Linux Level 1 Server Benchmark
   author:
     id: complytime

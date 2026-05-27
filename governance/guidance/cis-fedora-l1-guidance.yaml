@@ -4,7 +4,7 @@ metadata:
   id: cis-fedora-l1-guidance
   type: GuidanceCatalog
   gemara-version: "1.1.0"
-  version: "dev"
+  version: "dev-20260527"
   description: Guidance catalog for the CIS Fedora Linux Level 1 Benchmark. Provides rationale and context for each control family covering filesystem hardening, service minimization, network security, firewall configuration, access controls, logging, and system maintenance. Shared across Server and Workstation profiles.
   author:
     id: complytime

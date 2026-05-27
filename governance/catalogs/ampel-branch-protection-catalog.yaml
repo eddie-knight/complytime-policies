@@ -3,7 +3,7 @@ metadata:
     id: repo-branch-protection
     type: ControlCatalog
     gemara-version: "1.1.0"
-    version: "dev"
+    version: "dev-20260527"
     description: Branch protection controls for GitHub/GitLab repositories
     author:
         id: complytime

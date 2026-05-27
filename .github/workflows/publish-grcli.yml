@@ -2,19 +2,19 @@
 ---
 # yamllint disable rule:line-length
 # Publishes selected policy bundles to grc.store via grcli.
-# Each governance YAML layer is published individually because grcli
-# requires all inputs to describe a single artifact type.
+#
+# To publish a new release of a bundle:
+#   1. Bump `metadata.version` in the relevant source YAML.
+#   2. Dispatch this workflow with the bundle's checkbox set.
+#
+# Re-publishing the same metadata.version will fail — versions are
+# immutable. Bump the version each time you want to push a change.
 
 name: Publish to grc.store
 
 "on":
   workflow_dispatch:
     inputs:
-      tag:
-        description: "OCI tag to apply (e.g., latest, v1.0.0)"
-        required: false
-        type: string
-        default: latest
       ampel_branch_protection:
         description: "Publish ampel-branch-protection bundle"
         required: false
@@ -53,13 +53,15 @@ jobs:
         uses: sigstore/cosign-installer@v3
 
       - name: Install grcli
+        # Pinned to a specific release rather than :latest so this
+        # workflow doesn't change behavior unexpectedly when a new
+        # grcli ships. Bump deliberately after reviewing the release notes.
         run: |
-          oras pull ghcr.io/revanite-io/grcli:latest --platform linux/amd64
+          oras pull ghcr.io/revanite-io/grcli:v0.1.2 --platform linux/amd64
           sudo install grcli /usr/local/bin/grcli
 
       - name: Publish selected bundles via grcli
         env:
-          TAG: ${{ inputs.tag || 'latest' }}
           AMPEL: ${{ inputs.ampel_branch_protection }}
           CIS_SERVER: ${{ inputs.cis_fedora_l1_server }}
           CIS_WORKSTATION: ${{ inputs.cis_fedora_l1_workstation }}
@@ -81,8 +83,10 @@ jobs:
                 echo "::warning::Layer file not found: ${layer} (bundle: ${bundle_name})"
                 continue
               fi
-              echo "Publishing ${layer} (tag: ${TAG})..."
-              grcli publish -f "${layer}" --tag "${TAG}"
+              # grcli prints the full published coordinate (including
+              # version) on success — see the step group for the exact tag.
+              echo "Publishing ${layer}..."
+              grcli publish -f "${layer}"
               published+=("${layer}")
             done < <(grep -E '^\s*-\s+' "${bundle_file}")
             echo "::endgroup::"
@@ -108,9 +112,11 @@ jobs:
           {
             echo "### Published to grc.store"
             echo
-            echo "| File | Tag |"
-            echo "|------|-----|"
+            echo "| File |"
+            echo "|------|"
             for f in "${published[@]}"; do
-              echo "| \`${f}\` | \`${TAG}\` |"
+              echo "| \`${f}\` |"
             done
+            echo
+            echo "_Tag = each file's \`metadata.version\`._"
           } >> "${GITHUB_STEP_SUMMARY}"
