@@ -2,7 +2,7 @@ title: CIS Fedora Linux - Level 1 Server
 metadata:
   id: cis-fedora-l1-server
   type: ControlCatalog
-  gemara-version: "1.1.0"
+  gemara-version: "1.2.0"
   version: dev-20260527.3
   description: Control catalog derived from the CIS Fedora Linux Level 1 Server Benchmark
   author:

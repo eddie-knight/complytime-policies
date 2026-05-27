@@ -2,7 +2,7 @@ title: Branch Protection Controls
 metadata:
     id: repo-branch-protection
     type: ControlCatalog
-    gemara-version: "1.1.0"
+    gemara-version: "1.2.0"
     version: dev-20260527.3
     description: Branch protection controls for GitHub/GitLab repositories
     author:

@@ -2,7 +2,7 @@ title: CIS Fedora Linux - Level 1 Workstation Policy
 metadata:
     id: cis-fedora-l1-workstation-policy
     type: Policy
-    gemara-version: "1.1.0"
+    gemara-version: "1.2.0"
     version: dev-20260527.3
     description: Automated evaluation policy for the CIS Fedora Linux Level 1 Workstation Benchmark
     author:
