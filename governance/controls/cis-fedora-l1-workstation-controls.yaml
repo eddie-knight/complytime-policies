@@ -3,7 +3,7 @@ metadata:
     id: cis-fedora-l1-workstation
     type: ControlCatalog
     gemara-version: "1.2.0"
-    version: dev-20260527.3
+    version: "0.0.1"
     description: Control catalog derived from the CIS Fedora Linux Level 1 Workstation Benchmark
     author:
         id: complytime

@@ -15,6 +15,11 @@ name: Publish to grc.store
 "on":
   workflow_dispatch:
     inputs:
+      dry_run:
+        description: "Dry run (validate without publishing)"
+        required: false
+        type: boolean
+        default: false
       cis_fedora_l1_guidance:
         description: "Publish cis-fedora-l1-guidance"
         required: false
@@ -92,6 +97,12 @@ jobs:
         run: |
           set -euo pipefail
 
+          DRY_RUN=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            DRY_RUN="--dry-run"
+            echo "::notice::Dry run mode enabled — no files will be published."
+          fi
+
           published=()
 
           publish_file() {
@@ -107,7 +118,7 @@ jobs:
             # grcli prints the full published coordinate (including
             # version) on success — see the step group for the exact tag.
             echo "Publishing ${file}..."
-            grcli publish -f "${file}"
+            grcli publish -f "${file}" ${DRY_RUN}
 
             local ns id ver
             ns="$(yq -r '.metadata.author.id' "${file}")"
