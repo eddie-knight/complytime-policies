@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 # yamllint disable rule:line-length
-# Publishes selected policy bundles to grc.store via grcli.
+# Publishes selected governance files to grc.store via grcli.
 #
-# To publish a new release of a bundle:
-#   1. Bump `metadata.version` in the relevant source YAML.
-#   2. Dispatch this workflow with the bundle's checkbox set.
+# To publish a new release of a file:
+#   1. Bump `metadata.version` in the source YAML.
+#   2. Dispatch this workflow with the file's checkbox set.
 #
 # Re-publishing the same metadata.version will fail — versions are
 # immutable. Bump the version each time you want to push a change.
@@ -15,18 +15,38 @@ name: Publish to grc.store
 "on":
   workflow_dispatch:
     inputs:
-      ampel_branch_protection:
-        description: "Publish ampel-branch-protection bundle"
+      cis_fedora_l1_guidance:
+        description: "Publish cis-fedora-l1-guidance"
         required: false
         type: boolean
         default: true
-      cis_fedora_l1_server:
-        description: "Publish cis-fedora-l1-server bundle"
+      ampel_branch_protection_catalog:
+        description: "Publish ampel-branch-protection-catalog"
         required: false
         type: boolean
         default: true
-      cis_fedora_l1_workstation:
-        description: "Publish cis-fedora-l1-workstation bundle"
+      cis_fedora_l1_server_catalog:
+        description: "Publish cis-fedora-l1-server-catalog"
+        required: false
+        type: boolean
+        default: true
+      cis_fedora_l1_workstation_catalog:
+        description: "Publish cis-fedora-l1-workstation-catalog"
+        required: false
+        type: boolean
+        default: true
+      ampel_branch_protection_policy:
+        description: "Publish ampel-branch-protection-policy"
+        required: false
+        type: boolean
+        default: true
+      cis_fedora_l1_server_policy:
+        description: "Publish cis-fedora-l1-server-policy"
+        required: false
+        type: boolean
+        default: true
+      cis_fedora_l1_workstation_policy:
+        description: "Publish cis-fedora-l1-workstation-policy"
         required: false
         type: boolean
         default: true
@@ -41,7 +61,7 @@ permissions:
 
 jobs:
   publish:
-    name: Publish selected bundles
+    name: Publish selected files
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -60,52 +80,62 @@ jobs:
           oras pull ghcr.io/revanite-io/grcli:v0.1.2 --platform linux/amd64
           sudo install grcli /usr/local/bin/grcli
 
-      - name: Publish selected bundles via grcli
+      - name: Publish selected files via grcli
         env:
-          AMPEL: ${{ inputs.ampel_branch_protection }}
-          CIS_SERVER: ${{ inputs.cis_fedora_l1_server }}
-          CIS_WORKSTATION: ${{ inputs.cis_fedora_l1_workstation }}
+          CIS_GUIDANCE: ${{ inputs.cis_fedora_l1_guidance }}
+          AMPEL_CATALOG: ${{ inputs.ampel_branch_protection_catalog }}
+          CIS_SERVER_CATALOG: ${{ inputs.cis_fedora_l1_server_catalog }}
+          CIS_WORKSTATION_CATALOG: ${{ inputs.cis_fedora_l1_workstation_catalog }}
+          AMPEL_POLICY: ${{ inputs.ampel_branch_protection_policy }}
+          CIS_SERVER_POLICY: ${{ inputs.cis_fedora_l1_server_policy }}
+          CIS_WORKSTATION_POLICY: ${{ inputs.cis_fedora_l1_workstation_policy }}
         run: |
           set -euo pipefail
 
           published=()
 
-          publish_bundle() {
-            local bundle_file="$1"
-            local bundle_name
-            bundle_name="$(basename "${bundle_file}" .yaml)"
+          publish_file() {
+            local file="$1"
+            local name
+            name="$(basename "${file}" .yaml)"
 
-            echo "::group::${bundle_name}"
-            while IFS= read -r layer; do
-              layer="$(echo "${layer}" | sed 's/^[[:space:]]*-[[:space:]]*//')"
-              [ -z "${layer}" ] && continue
-              if [ ! -f "${layer}" ]; then
-                echo "::warning::Layer file not found: ${layer} (bundle: ${bundle_name})"
-                continue
-              fi
-              # grcli prints the full published coordinate (including
-              # version) on success — see the step group for the exact tag.
-              echo "Publishing ${layer}..."
-              grcli publish -f "${layer}"
-              published+=("${layer}")
-            done < <(grep -E '^\s*-\s+' "${bundle_file}")
+            echo "::group::${name}"
+            if [ ! -f "${file}" ]; then
+              echo "::error::File not found: ${file}"
+              exit 1
+            fi
+            # grcli prints the full published coordinate (including
+            # version) on success — see the step group for the exact tag.
+            echo "Publishing ${file}..."
+            grcli publish -f "${file}"
+            published+=("${file}")
             echo "::endgroup::"
           }
 
-          if [ "${AMPEL}" = "true" ]; then
-            publish_bundle bundles/ampel-branch-protection.yaml
+          if [ "${CIS_GUIDANCE}" = "true" ]; then
+            publish_file governance/guidance/cis-fedora-l1-guidance.yaml
           fi
-
-          if [ "${CIS_SERVER}" = "true" ]; then
-            publish_bundle bundles/cis-fedora-l1-server.yaml
+          if [ "${AMPEL_CATALOG}" = "true" ]; then
+            publish_file governance/catalogs/ampel-branch-protection-catalog.yaml
           fi
-
-          if [ "${CIS_WORKSTATION}" = "true" ]; then
-            publish_bundle bundles/cis-fedora-l1-workstation.yaml
+          if [ "${CIS_SERVER_CATALOG}" = "true" ]; then
+            publish_file governance/catalogs/cis-fedora-l1-server-catalog.yaml
+          fi
+          if [ "${CIS_WORKSTATION_CATALOG}" = "true" ]; then
+            publish_file governance/catalogs/cis-fedora-l1-workstation-catalog.yaml
+          fi
+          if [ "${AMPEL_POLICY}" = "true" ]; then
+            publish_file governance/policies/ampel-branch-protection-policy.yaml
+          fi
+          if [ "${CIS_SERVER_POLICY}" = "true" ]; then
+            publish_file governance/policies/cis-fedora-l1-server-policy.yaml
+          fi
+          if [ "${CIS_WORKSTATION_POLICY}" = "true" ]; then
+            publish_file governance/policies/cis-fedora-l1-workstation-policy.yaml
           fi
 
           if [ ${#published[@]} -eq 0 ]; then
-            echo "::warning::No bundles were selected for publishing."
+            echo "::warning::No files were selected for publishing."
             exit 0
           fi
 
