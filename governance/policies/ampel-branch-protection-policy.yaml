@@ -3,6 +3,7 @@ metadata:
     id: ampel-branch-protection-policy
     type: Policy
     gemara-version: "1.1.0"
+    version: "dev"
     description: Automated evaluation policy for branch protection controls using AMPEL
     author:
         id: complytime
