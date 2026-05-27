@@ -108,7 +108,12 @@ jobs:
             # version) on success — see the step group for the exact tag.
             echo "Publishing ${file}..."
             grcli publish -f "${file}"
-            published+=("${file}")
+
+            local ns id ver
+            ns="$(yq -r '.metadata.author.id' "${file}")"
+            id="$(yq -r '.metadata.id' "${file}")"
+            ver="$(yq -r '.metadata.version' "${file}")"
+            published+=("${file}|${ns}|${id}|${ver}")
             echo "::endgroup::"
           }
 
@@ -142,10 +147,11 @@ jobs:
           {
             echo "### Published to grc.store"
             echo
-            echo "| File |"
-            echo "|------|"
-            for f in "${published[@]}"; do
-              echo "| \`${f}\` |"
+            echo "| Source | Publication |"
+            echo "|------|-----------|"
+            for entry in "${published[@]}"; do
+              IFS='|' read -r f ns id ver <<< "${entry}"
+              echo "| \`${f}\` | [${ns}/${id} @ ${ver}](https://grc.store/search/${ns}/${id}/versions/${ver}) |"
             done
             echo
             echo "_Tag = each file's \`metadata.version\`._"
