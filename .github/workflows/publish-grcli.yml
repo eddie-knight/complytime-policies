@@ -66,7 +66,7 @@ permissions:
 
 jobs:
   publish:
-    name: Publish selected files
+    name: Publish selected files${{ inputs.dry_run && ' (Dry Run)' || '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -85,7 +85,7 @@ jobs:
           oras pull ghcr.io/revanite-io/grcli:v0.1.2 --platform linux/amd64
           sudo install grcli /usr/local/bin/grcli
 
-      - name: Publish selected files via grcli
+      - name: Publish selected files via grcli${{ inputs.dry_run && ' (Dry Run)' || '' }}
         env:
           CIS_GUIDANCE: ${{ inputs.cis_fedora_l1_guidance }}
           AMPEL_CATALOG: ${{ inputs.ampel_branch_protection_catalog }}
@@ -156,8 +156,15 @@ jobs:
           fi
 
           {
-            echo "### Published to grc.store"
-            echo
+            if [ -n "${DRY_RUN}" ]; then
+              echo "### Dry Run — Publish to grc.store"
+              echo
+              echo "> **This was a dry run.** To confirm, you may click the links below to see that the artifacts were not published as part of this run. If a previous artifact exists, review the release timestamp to confirm."
+              echo
+            else
+              echo "### Published to grc.store"
+              echo
+            fi
             echo "| Source | Publication |"
             echo "|------|-----------|"
             for entry in "${published[@]}"; do
